@@ -4,15 +4,6 @@ using System.Threading.Tasks;
 
 namespace FuturePlayground
 {
-    public sealed class Unit
-    {
-        private Unit()
-        {
-        }
-
-        public static Unit Instance { get; } = new Unit();
-    }
-
     [AsyncMethodBuilder(typeof(FutureAsyncMethodBuilder))]
     public interface IFuture
     {
@@ -20,9 +11,8 @@ namespace FuturePlayground
     }
 
     [AsyncMethodBuilder(typeof(FutureAsyncMethodBuilder<>))]
-    public interface IFuture<out T>
+    public interface IFuture<out T> : IFuture
     {
-        bool IsCompleted { get; }
     }
 
     public static class FutureEx
@@ -49,11 +39,16 @@ namespace FuturePlayground
     public class FutureHelpers
     {
         public static async Task<object> Box<T>(Task<T> source) => await source.ConfigureAwait(false);
+        public static async Task<object> Box(Task source)
+        {
+            await source;
+            return null;
+        }
     }
 
-    public abstract class Future : IFuture
+    public class Future : IFuture
     {
-        protected Future(Task<object> task)
+        public Future(Task<object> task)
         {
             Task = task;
         }
@@ -72,19 +67,19 @@ namespace FuturePlayground
 
     public struct FutureAsyncMethodBuilder
     {
-        private AsyncTaskMethodBuilder<Unit> _taskMethodBuilder;
+        private AsyncTaskMethodBuilder _taskMethodBuilder;
 
-        public FutureAsyncMethodBuilder(AsyncTaskMethodBuilder<Unit> taskMethodBuilder)
+        public FutureAsyncMethodBuilder(AsyncTaskMethodBuilder taskMethodBuilder)
         {
             _taskMethodBuilder = taskMethodBuilder;
-            Task = new Future<Unit>(FutureHelpers.Box(_taskMethodBuilder.Task));
+            Task = new Future(FutureHelpers.Box(_taskMethodBuilder.Task));
         }
 
-        public static FutureAsyncMethodBuilder Create() => new FutureAsyncMethodBuilder(AsyncTaskMethodBuilder<Unit>.Create());
+        public static FutureAsyncMethodBuilder Create() => new FutureAsyncMethodBuilder(AsyncTaskMethodBuilder.Create());
 
         public void Start<TStateMachine>(ref TStateMachine stateMachine) where TStateMachine : IAsyncStateMachine => _taskMethodBuilder.Start(ref stateMachine);
         public void SetStateMachine(IAsyncStateMachine stateMachine) => _taskMethodBuilder.SetStateMachine(stateMachine);
-        public void SetResult() => _taskMethodBuilder.SetResult(Unit.Instance);
+        public void SetResult() => _taskMethodBuilder.SetResult();
         public void SetException(Exception exception) => _taskMethodBuilder.SetException(exception);
 
         public void AwaitOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine)
@@ -97,7 +92,7 @@ namespace FuturePlayground
             where TStateMachine : IAsyncStateMachine
             => _taskMethodBuilder.AwaitUnsafeOnCompleted(ref awaiter, ref stateMachine);
 
-        public IFuture<Unit> Task { get; }
+        public IFuture Task { get; }
     }
 
     public struct FutureAsyncMethodBuilder<T>
