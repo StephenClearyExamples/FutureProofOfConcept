@@ -22,64 +22,80 @@ namespace FuturePlayground
     [AsyncMethodBuilder(typeof(FutureAsyncMethodBuilder<>))]
     public interface IFuture<out T>
     {
+        bool IsCompleted { get; }
     }
 
     public static class FutureEx
     {
-        // Dynamic doesn't work here! :(
-        //   [RuntimeBinderException]: 'object' does not contain a definition for 'Task'
-        //public static FutureAwaiter<T> GetAwaiter<T>(this IFuture<T> @this) => new FutureAwaiter<T>(((dynamic) @this).Task.GetAwaiter());
-        public static FutureAwaiter<T> GetAwaiter<T>(this IFuture<T> @this)
-        {
-            var task = @this.GetType().GetProperty("Task").GetValue(@this, null);
-            var awaiter = task.GetType().GetMethod("GetAwaiter").Invoke(task, new object[0]);
-            return new FutureAwaiter<T>((ICriticalNotifyCompletion)awaiter);
-        }
-
-        // Dynamic does work here! :D
-        public static FutureAwaiter<Unit> GetAwaiter(this IFuture @this) => new FutureAwaiter<Unit>(((dynamic)@this).Task.GetAwaiter());
-        //public static FutureAwaiter<Unit> GetAwaiter(this IFuture @this)
-        //{
-        //    var task = @this.GetType().GetProperty("Task").GetValue(@this, null);
-        //    var awaiter = task.GetType().GetMethod("GetAwaiter").Invoke(task, new object[0]);
-        //    return new FutureAwaiter<Unit>((ICriticalNotifyCompletion)awaiter);
-        //}
+        public static FutureAwaiter<T> GetAwaiter<T>(this IFuture<T> @this) => new FutureAwaiter<T>(((Future)@this).Task.GetAwaiter());
+        public static FutureAwaiter<Unit> GetAwaiter(this IFuture @this) => new FutureAwaiter<Unit>(((Future)@this).Task.GetAwaiter());
 
         public static ConfiguredFutureAwaitable<T> ConfigureAwait<T>(this IFuture<T> @this, bool continueOnCapturedContext) => new ConfiguredFutureAwaitable<T>(@this, continueOnCapturedContext);
         public static ConfiguredFutureAwaitable ConfigureAwait(this IFuture @this, bool continueOnCapturedContext) => new ConfiguredFutureAwaitable(@this, continueOnCapturedContext);
 
-        public static async Task<T> AsTask<T>(this IFuture<T> @this) => await @this.ConfigureAwait(false);
-        public static async Task AsTask(this IFuture @this) => await @this.ConfigureAwait(false);
+        public static async Task<T> AsTask<T>(this IFuture<T> @this)
+        {
+            var future = (Future) @this;
+            return (T)await future.Task.ConfigureAwait(false);
+        }
+
+        public static Task AsTask(this IFuture @this)
+        {
+            var future = (Future) @this;
+            return future.Task;
+        }
     }
 
-    public sealed class Future<T> : IFuture<T>, IFuture
+    public class FutureHelpers
     {
-        public Future(Task<T> task)
+        public static async Task<object> Box<T>(Task<T> source) => await source.ConfigureAwait(false);
+    }
+
+    public abstract class Future : IFuture
+    {
+        protected Future(Task<object> task)
         {
             Task = task;
         }
 
-        public Task<T> Task { get; }
+        public Task<object> Task { get; }
         public bool IsCompleted => Task.IsCompleted;
+    }
+
+    public sealed class Future<T> : Future, IFuture<T>
+    {
+        public Future(Task<object> task)
+            : base(task)
+        {
+        }
     }
 
     public sealed class FutureAwaiter<T> : ICriticalNotifyCompletion
     {
-        private readonly ICriticalNotifyCompletion _awaiter;
+        private TaskAwaiter<object> _awaiter;
 
-        public FutureAwaiter(ICriticalNotifyCompletion awaiter)
+        public FutureAwaiter(TaskAwaiter<object> awaiter)
         {
             _awaiter = awaiter;
         }
 
-        // Dynamic doesn't work here! :(
-        //   [RuntimeBinderException]: 'System.ValueType' does not contain a definition for 'IsCompleted'
-        //public bool IsCompleted => ((dynamic) _awaiter).IsCompleted;
-        public bool IsCompleted => (bool)_awaiter.GetType().GetProperty("IsCompleted").GetValue(_awaiter);
-        // Dynamic doesn't work here! :(
-        //   [RuntimeBinderException]: 'System.ValueType' does not contain a definition for 'GetResult'
-        //public T GetResult() => ((dynamic) _awaiter).GetResult();
-        public T GetResult() => (T)_awaiter.GetType().GetMethod("GetResult").Invoke(_awaiter, new object[0]);
+        public bool IsCompleted => _awaiter.IsCompleted;
+        public T GetResult() => (T)_awaiter.GetResult();
+        public void OnCompleted(Action continuation) => _awaiter.OnCompleted(continuation);
+        public void UnsafeOnCompleted(Action continuation) => _awaiter.UnsafeOnCompleted(continuation);
+    }
+
+    public sealed class ConfiguredFutureAwaiter<T> : ICriticalNotifyCompletion
+    {
+        private ConfiguredTaskAwaitable<object>.ConfiguredTaskAwaiter _awaiter;
+
+        public ConfiguredFutureAwaiter(ConfiguredTaskAwaitable<object>.ConfiguredTaskAwaiter awaiter)
+        {
+            _awaiter = awaiter;
+        }
+
+        public bool IsCompleted => _awaiter.IsCompleted;
+        public T GetResult() => (T)_awaiter.GetResult();
         public void OnCompleted(Action continuation) => _awaiter.OnCompleted(continuation);
         public void UnsafeOnCompleted(Action continuation) => _awaiter.UnsafeOnCompleted(continuation);
     }
@@ -95,16 +111,7 @@ namespace FuturePlayground
             _continueOnCapturedContext = continueOnCapturedContext;
         }
 
-        // Dynamic doesn't work here! :(
-        //   [RuntimeBinderException]: 'object' does not contain a definition for 'Task'
-        //public FutureAwaiter<T> GetAwaiter() => new FutureAwaiter<T>(((dynamic) _future).Task.ConfigureAwait(_continueOnCapturedContext).GetAwaiter());
-        public FutureAwaiter<T> GetAwaiter()
-        {
-            var task = _future.GetType().GetProperty("Task").GetValue(_future, null);
-            var configuredTaskAwaitable = task.GetType().GetMethod("ConfigureAwait").Invoke(task, new object[] { _continueOnCapturedContext });
-            var awaiter = configuredTaskAwaitable.GetType().GetMethod("GetAwaiter").Invoke(configuredTaskAwaitable, new object[0]);
-            return new FutureAwaiter<T>((ICriticalNotifyCompletion)awaiter);
-        }
+        public ConfiguredFutureAwaiter<T> GetAwaiter() => new ConfiguredFutureAwaiter<T>(((Future) _future).Task.ConfigureAwait(_continueOnCapturedContext).GetAwaiter());
     }
 
     public struct ConfiguredFutureAwaitable
@@ -118,15 +125,7 @@ namespace FuturePlayground
             _continueOnCapturedContext = continueOnCapturedContext;
         }
 
-        // Dynamic does work here! :D
-        public FutureAwaiter<Unit> GetAwaiter() => new FutureAwaiter<Unit>(((dynamic)_future).Task.ConfigureAwait(_continueOnCapturedContext).GetAwaiter());
-        //public FutureAwaiter<Unit> GetAwaiter()
-        //{
-        //    var task = _future.GetType().GetProperty("Task").GetValue(_future, null);
-        //    var configuredTaskAwaitable = task.GetType().GetMethod("ConfigureAwait").Invoke(task, new object[] { _continueOnCapturedContext });
-        //    var awaiter = configuredTaskAwaitable.GetType().GetMethod("GetAwaiter").Invoke(configuredTaskAwaitable, new object[0]);
-        //    return new FutureAwaiter<Unit>((ICriticalNotifyCompletion)awaiter);
-        //}
+        public ConfiguredFutureAwaiter<Unit> GetAwaiter() => new ConfiguredFutureAwaiter<Unit>(((Future) _future).Task.ConfigureAwait(_continueOnCapturedContext).GetAwaiter());
     }
 
     public struct FutureAsyncMethodBuilder
@@ -136,7 +135,7 @@ namespace FuturePlayground
         public FutureAsyncMethodBuilder(AsyncTaskMethodBuilder<Unit> taskMethodBuilder)
         {
             _taskMethodBuilder = taskMethodBuilder;
-            Task = new Future<Unit>(_taskMethodBuilder.Task);
+            Task = new Future<Unit>(FutureHelpers.Box(_taskMethodBuilder.Task));
         }
 
         public static FutureAsyncMethodBuilder Create() => new FutureAsyncMethodBuilder(AsyncTaskMethodBuilder<Unit>.Create());
@@ -166,7 +165,7 @@ namespace FuturePlayground
         public FutureAsyncMethodBuilder(AsyncTaskMethodBuilder<T> taskMethodBuilder)
         {
             _taskMethodBuilder = taskMethodBuilder;
-            Task = new Future<T>(_taskMethodBuilder.Task);
+            Task = new Future<T>(FutureHelpers.Box(_taskMethodBuilder.Task));
         }
 
         public static FutureAsyncMethodBuilder<T> Create() => new FutureAsyncMethodBuilder<T>(AsyncTaskMethodBuilder<T>.Create());
