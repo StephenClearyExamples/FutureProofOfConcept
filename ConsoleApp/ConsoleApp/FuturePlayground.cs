@@ -27,23 +27,23 @@ namespace FuturePlayground
 
     public static class FutureEx
     {
-        public static FutureAwaiter<T> GetAwaiter<T>(this IFuture<T> @this) => new FutureAwaiter<T>(((Future)@this).Task.GetAwaiter());
-        public static FutureAwaiter<Unit> GetAwaiter(this IFuture @this) => new FutureAwaiter<Unit>(((Future)@this).Task.GetAwaiter());
-
-        public static ConfiguredFutureAwaitable<T> ConfigureAwait<T>(this IFuture<T> @this, bool continueOnCapturedContext) => new ConfiguredFutureAwaitable<T>(@this, continueOnCapturedContext);
-        public static ConfiguredFutureAwaitable ConfigureAwait(this IFuture @this, bool continueOnCapturedContext) => new ConfiguredFutureAwaitable(@this, continueOnCapturedContext);
-
         public static async Task<T> AsTask<T>(this IFuture<T> @this)
         {
-            var future = (Future) @this;
+            var future = (Future)@this;
             return (T)await future.Task.ConfigureAwait(false);
         }
 
         public static Task AsTask(this IFuture @this)
         {
-            var future = (Future) @this;
+            var future = (Future)@this;
             return future.Task;
         }
+
+        public static TaskAwaiter<T> GetAwaiter<T>(this IFuture<T> @this) => @this.AsTask().GetAwaiter();
+        public static TaskAwaiter GetAwaiter(this IFuture @this) => @this.AsTask().GetAwaiter();
+
+        public static ConfiguredTaskAwaitable<T> ConfigureAwait<T>(this IFuture<T> @this, bool continueOnCapturedContext) => @this.AsTask().ConfigureAwait(continueOnCapturedContext);
+        public static ConfiguredTaskAwaitable ConfigureAwait(this IFuture @this, bool continueOnCapturedContext) => @this.AsTask().ConfigureAwait(continueOnCapturedContext);
     }
 
     public class FutureHelpers
@@ -68,64 +68,6 @@ namespace FuturePlayground
             : base(task)
         {
         }
-    }
-
-    public sealed class FutureAwaiter<T> : ICriticalNotifyCompletion
-    {
-        private TaskAwaiter<object> _awaiter;
-
-        public FutureAwaiter(TaskAwaiter<object> awaiter)
-        {
-            _awaiter = awaiter;
-        }
-
-        public bool IsCompleted => _awaiter.IsCompleted;
-        public T GetResult() => (T)_awaiter.GetResult();
-        public void OnCompleted(Action continuation) => _awaiter.OnCompleted(continuation);
-        public void UnsafeOnCompleted(Action continuation) => _awaiter.UnsafeOnCompleted(continuation);
-    }
-
-    public sealed class ConfiguredFutureAwaiter<T> : ICriticalNotifyCompletion
-    {
-        private ConfiguredTaskAwaitable<object>.ConfiguredTaskAwaiter _awaiter;
-
-        public ConfiguredFutureAwaiter(ConfiguredTaskAwaitable<object>.ConfiguredTaskAwaiter awaiter)
-        {
-            _awaiter = awaiter;
-        }
-
-        public bool IsCompleted => _awaiter.IsCompleted;
-        public T GetResult() => (T)_awaiter.GetResult();
-        public void OnCompleted(Action continuation) => _awaiter.OnCompleted(continuation);
-        public void UnsafeOnCompleted(Action continuation) => _awaiter.UnsafeOnCompleted(continuation);
-    }
-
-    public struct ConfiguredFutureAwaitable<T>
-    {
-        private readonly IFuture<T> _future;
-        private readonly bool _continueOnCapturedContext;
-
-        public ConfiguredFutureAwaitable(IFuture<T> future, bool continueOnCapturedContext)
-        {
-            _future = future;
-            _continueOnCapturedContext = continueOnCapturedContext;
-        }
-
-        public ConfiguredFutureAwaiter<T> GetAwaiter() => new ConfiguredFutureAwaiter<T>(((Future) _future).Task.ConfigureAwait(_continueOnCapturedContext).GetAwaiter());
-    }
-
-    public struct ConfiguredFutureAwaitable
-    {
-        private readonly IFuture _future;
-        private readonly bool _continueOnCapturedContext;
-
-        public ConfiguredFutureAwaitable(IFuture future, bool continueOnCapturedContext)
-        {
-            _future = future;
-            _continueOnCapturedContext = continueOnCapturedContext;
-        }
-
-        public ConfiguredFutureAwaiter<Unit> GetAwaiter() => new ConfiguredFutureAwaiter<Unit>(((Future) _future).Task.ConfigureAwait(_continueOnCapturedContext).GetAwaiter());
     }
 
     public struct FutureAsyncMethodBuilder
