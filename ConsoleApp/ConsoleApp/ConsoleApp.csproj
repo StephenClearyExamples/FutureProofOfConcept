@@ -107,9 +107,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="FuturePlayground\Future.cs" />
-    <Compile Include="FuturePlayground\FutureAsyncMethodBuilder.cs" />
-    <Compile Include="FuturePlayground\FutureHelpers.cs" />
+    <Compile Include="FuturePlayground\CompilerSupport\Future.cs" />
+    <Compile Include="FuturePlayground\CompilerSupport\FutureAsyncMethodBuilder.cs" />
+    <Compile Include="FuturePlayground\CompilerSupport\FutureHelpers.cs" />
     <Compile Include="FuturePlayground\IFuture.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

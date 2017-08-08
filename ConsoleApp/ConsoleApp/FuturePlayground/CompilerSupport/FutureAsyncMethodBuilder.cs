@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 
-namespace FuturePlayground
+namespace FuturePlayground.CompilerSupport
 {
     public struct FutureAsyncMethodBuilder
     {
