@@ -10,7 +10,6 @@ namespace FuturePlayground.CompilerSupport
         }
 
         public Task<object> Task { get; }
-        public bool IsCompleted => Task.IsCompleted;
     }
 
     public sealed class Future<T> : Future, IFuture<T>

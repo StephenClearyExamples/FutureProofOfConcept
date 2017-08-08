@@ -7,7 +7,6 @@ namespace FuturePlayground
     [AsyncMethodBuilder(typeof(FutureAsyncMethodBuilder))]
     public interface IFuture
     {
-        bool IsCompleted { get; }
     }
 
     [AsyncMethodBuilder(typeof(FutureAsyncMethodBuilder<>))]
